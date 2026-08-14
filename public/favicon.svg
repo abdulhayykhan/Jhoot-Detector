@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="50%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.25" />
+      <stop offset="100%" stop-color="#059669" stop-opacity="0" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Rounded Canvas -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <rect width="504" height="504" x="4" y="4" rx="108" fill="none" stroke="#10b981" stroke-width="8" stroke-opacity="0.3" />
+
+  <!-- Subtle Ambient Glow -->
+  <circle cx="256" cy="256" r="180" fill="url(#glowGrad)" />
+
+  <!-- Shield Shape Base -->
+  <path
+    d="M256 70 L390 125 C390 270 325 385 256 432 C187 385 122 270 122 125 Z"
+    fill="#0f172a"
+    stroke="url(#shieldGrad)"
+    stroke-width="24"
+    stroke-linejoin="round"
+  />
+
+  <!-- Shield Inner Accent Line -->
+  <path
+    d="M256 102 L364 148 C364 262 312 356 256 395 C200 356 148 262 148 148 Z"
+    fill="none"
+    stroke="#10b981"
+    stroke-width="6"
+    stroke-opacity="0.4"
+    stroke-linejoin="round"
+  />
+
+  <!-- Detective Magnifying Glass in Center -->
+  <!-- Glass Rim -->
+  <circle
+    cx="236"
+    cy="226"
+    r="64"
+    fill="#020617"
+    fill-opacity="0.75"
+    stroke="url(#shieldGrad)"
+    stroke-width="22"
+  />
+
+  <!-- Glass Inner Highlight / Scan Glow -->
+  <circle
+    cx="236"
+    cy="226"
+    r="44"
+    fill="none"
+    stroke="#6ee7b7"
+    stroke-width="6"
+    stroke-opacity="0.6"
+  />
+
+  <!-- Magnifying Glass Handle -->
+  <path
+    d="M285 275 L356 346"
+    stroke="url(#shieldGrad)"
+    stroke-width="26"
+    stroke-linecap="round"
+  />
+
+  <!-- Handle Grip Accent -->
+  <path
+    d="M320 310 L350 340"
+    stroke="#a7f3d0"
+    stroke-width="12"
+    stroke-linecap="round"
+  />
+
+  <!-- Sparkle / Verified Check Star in Lens -->
+  <path
+    d="M236 194 L244 216 L266 224 L244 232 L236 254 L228 232 L206 224 L228 216 Z"
+    fill="#34d399"
+  />
+</svg>

@@ -57,15 +57,17 @@ For each red flag found:
 - Extract the exact or near-exact phrase/detail that triggered it
 - Provide a clear one-sentence explanation of why it's suspicious in the Pakistani context
 
-RISK CLASSIFICATION RULES:
+RISK CLASSIFICATION RULES (STRICT HIERARCHY):
 - "HIGH": 
-  * Triggered if at least ONE [CRITICAL SEVERITY FLAG] is present (e.g. upfront fee/deposit via Easypaisa/JazzCash).
-  * OR triggered if TWO OR MORE (2+) [MEDIUM SEVERITY FLAGS] are present in the posting.
+  * MANDATORY REQUIREMENT: HIGH RISK is STRICTLY reserved for postings with an explicit UPFRONT PAYMENT / FEE DEMAND (e.g. registration fee, training fee, "refundable deposit", portal activation, Easypaisa/JazzCash/bank transfer) OR extreme salary absurdity (e.g. PKR 100k/month for 2h smartphone typing with zero experience).
+  * ABSOLUTE RULE: If a posting does NOT ask for money/fees and does NOT have absurd salary promises, it MUST NEVER be classified as HIGH RISK.
+
 - "MEDIUM": 
-  * Triggered strictly when exactly ONE (1) [MEDIUM SEVERITY FLAG] is present in isolation (e.g. CNIC/photo requested pre-interview WITHOUT any upfront fee, OR a generic public email on an otherwise structured job ad with realistic pay).
-  * IMPORTANT: Never escalate a single isolated medium-severity signal to HIGH RISK if there are no upfront payments or other accompanying red flags.
+  * Assigned when caution signals are present (e.g. premature CNIC/photo request, generic free email like @outlook.com/@gmail.com, vague description, or urgency) BUT THERE IS NO UPFRONT PAYMENT/FEE REQUEST.
+  * Even if multiple caution flags exist together (e.g. both @outlook.com AND a CNIC copy request), if there is NO payment/fee demand, the risk_level MUST be "MEDIUM", NOT "HIGH".
+
 - "LOW": 
-  * Triggered when there are ZERO Critical or Medium severity flags (or only minor stylistic/formatting observations) with a verifiable domain, clear job description, and standard hiring process.
+  * Assigned when there are ZERO fee demands, no premature CNIC requests, a legitimate corporate entity/careers portal, clear job responsibilities, and standard hiring procedures.
 
 If risk is LOW or MEDIUM, explicitly list the legitimate signals that build confidence.
 

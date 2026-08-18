@@ -1,30 +1,28 @@
 """
 Jhoot Detector — Flask Backend
-Pakistani Job Scam Analyzer powered by Groq AI (Llama 3.3 70B)
+Pakistani Job Scam Analyzer powered by Groq AI (GPT-OSS 120B)
 
-Run locally:   flask run
-Production:    gunicorn app:app
-
-DEPLOYMENT NOTE:
-  This Flask app will NOT deploy on Vercel the same way the previous
-  React/Vercel-serverless version did. Vercel's Python runtime has
-  constraints (10s serverless function timeout on free tier, cold starts,
-  no persistent process). For a persistent Flask app, recommended
-  platforms are:
-    - Render.com  (free tier, auto-deploy from GitHub, always-on)
-    - Railway.app (usage-based billing, simple deploy)
-  Both support gunicorn and environment variables natively.
+Run locally:   flask run (or python app.py)
+Production:    gunicorn app:app / Vercel Serverless Function
 """
 
 import os
 import re
 import json
+import logging
 import requests as http_requests
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+logger = logging.getLogger("jhoot_detector")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -33,9 +31,7 @@ app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="")
 CORS(app)  # Needed if frontend/backend served separately in dev; same-origin in prod
 
 # ---------------------------------------------------------------------------
-# System prompt — copied VERBATIM from api/analyze.ts
-# Preserves the calibrated severity-weighting rules including the fix where
-# isolated medium flags should NOT auto-escalate to HIGH.
+# System prompt — Calibrated severity-weighting rules for Pakistani job scams
 # ---------------------------------------------------------------------------
 SYSTEM_INSTRUCTION = """You are a job-scam detection assistant specialized in the Pakistani job market (Rozee.pk, Facebook groups, WhatsApp job forwards, LinkedIn Pakistan, Mustakbil, OLX Pakistan jobs). 
 
@@ -73,7 +69,10 @@ RISK CLASSIFICATION RULES:
 
 If risk is LOW or MEDIUM, explicitly list the legitimate signals that build confidence.
 
-Respond ONLY in this JSON structure:
+OUTPUT FORMAT INSTRUCTION:
+Respond ONLY with a valid JSON object. Do not include markdown formatting, code blocks (e.g. ```json), or any conversational introductory or concluding text.
+
+JSON Structure:
 {
   "risk_level": "LOW" | "MEDIUM" | "HIGH",
   "summary": "one sentence verdict",
@@ -84,13 +83,14 @@ Respond ONLY in this JSON structure:
 }"""
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-PRIMARY_MODEL = "llama-3.3-70b-versatile"
-FALLBACK_MODEL = "llama-3.1-8b-instant"
+PRIMARY_MODEL = "openai/gpt-oss-120b"
+FALLBACK_MODEL = "openai/gpt-oss-20b"
 
 
 def call_groq_chat_completions(api_key: str, model: str, user_prompt: str):
-    """Call Groq's OpenAI-compatible chat completions endpoint."""
-    return http_requests.post(
+    """Call Groq's OpenAI-compatible chat completions endpoint with structured logging."""
+    logger.info(f"[GROQ REQUEST] Calling model '{model}' at {GROQ_API_URL}")
+    response = http_requests.post(
         GROQ_API_URL,
         headers={
             "Content-Type": "application/json",
@@ -107,6 +107,35 @@ def call_groq_chat_completions(api_key: str, model: str, user_prompt: str):
         },
         timeout=60,
     )
+    logger.info(f"[GROQ RESPONSE] Model '{model}' responded with HTTP {response.status_code}")
+    return response
+
+
+def parse_model_json(message_content: str) -> dict:
+    """Robust JSON extraction handling reasoning models, think tags, and markdown codeblocks."""
+    if not message_content or not isinstance(message_content, str):
+        raise ValueError("Empty message content received from model.")
+
+    # 1. Strip reasoning / thinking tags if emitted by reasoning models
+    cleaned = re.sub(r"<think>[\s\S]*?</think>", "", message_content).strip()
+
+    # 2. Strip markdown code fences (e.g. ```json ... ```)
+    code_block_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned)
+    if code_block_match:
+        cleaned = code_block_match.group(1).strip()
+
+    # 3. Attempt direct JSON parsing
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # 4. Fallback: extract outermost JSON object with regex
+    json_match = re.search(r"\{[\s\S]*\}", cleaned)
+    if json_match:
+        return json.loads(json_match.group(0))
+
+    raise ValueError(f"Could not parse valid JSON from model response: {message_content[:200]}")
 
 
 # ---------------------------------------------------------------------------
@@ -141,10 +170,11 @@ def analyze():
 
         api_key = os.environ.get("GROQ_API_KEY")
         if not api_key:
+            logger.warning("[AUTH ERROR] GROQ_API_KEY is not configured in environment.")
             return (
                 jsonify(
                     {
-                        "error": "GROQ_API_KEY is not configured. Please add it to your .env file or environment variables."
+                        "error": "GROQ_API_KEY is not configured. Please add it to your .env file or Vercel Environment Variables."
                     }
                 ),
                 400,
@@ -155,17 +185,21 @@ def analyze():
             f'"""\n{text.strip()}\n"""'
         )
 
+        active_model = PRIMARY_MODEL
+
         # Primary model attempt
         try:
             groq_res = call_groq_chat_completions(api_key, PRIMARY_MODEL, user_prompt)
         except http_requests.exceptions.Timeout:
+            logger.error(f"[TIMEOUT] Request to model '{PRIMARY_MODEL}' timed out after 60s.")
             return (
                 jsonify(
                     {"error": "Analysis service timed out. Please try again."}
                 ),
                 504,
             )
-        except http_requests.exceptions.ConnectionError:
+        except http_requests.exceptions.ConnectionError as conn_err:
+            logger.error(f"[CONNECTION ERROR] Failed to connect to Groq: {conn_err}")
             return (
                 jsonify(
                     {
@@ -175,10 +209,15 @@ def analyze():
                 503,
             )
 
-        # Fallback if primary model is unavailable (404 or 400 with model_not_found)
+        # Fallback if primary model is unavailable (404 model not found, or 400 error referencing model)
         if groq_res.status_code in (404, 400):
             err_text = groq_res.text
-            if "model_not_found" in err_text or "does not exist" in err_text:
+            if "model_not_found" in err_text or "does not exist" in err_text or "not_found" in err_text:
+                logger.warning(
+                    f"[MODEL FALLBACK] Primary model '{PRIMARY_MODEL}' unavailable ({err_text[:120]}). "
+                    f"Falling back to '{FALLBACK_MODEL}'..."
+                )
+                active_model = FALLBACK_MODEL
                 try:
                     groq_res = call_groq_chat_completions(
                         api_key, FALLBACK_MODEL, user_prompt
@@ -186,7 +225,8 @@ def analyze():
                 except (
                     http_requests.exceptions.Timeout,
                     http_requests.exceptions.ConnectionError,
-                ):
+                ) as fallback_err:
+                    logger.error(f"[FALLBACK FAILED] Error calling fallback model '{FALLBACK_MODEL}': {fallback_err}")
                     return (
                         jsonify(
                             {
@@ -198,6 +238,7 @@ def analyze():
 
         # Handle rate limiting
         if groq_res.status_code == 429:
+            logger.warning(f"[RATE LIMIT] Groq rate limit reached on model '{active_model}': {groq_res.text[:150]}")
             return (
                 jsonify(
                     {
@@ -209,6 +250,7 @@ def analyze():
 
         # Handle server errors
         if groq_res.status_code >= 500:
+            logger.error(f"[GROQ 5XX] Groq server error on model '{active_model}' (HTTP {groq_res.status_code}): {groq_res.text[:200]}")
             return (
                 jsonify(
                     {"error": "Analysis service busy, please retry in a moment."}
@@ -227,10 +269,7 @@ def analyze():
             except (ValueError, KeyError):
                 err_msg = f"Groq API request failed with status {groq_res.status_code}"
 
-            if groq_res.status_code == 429:
-                err_msg = "Analysis service busy, please retry in a moment."
-
-            app.logger.error("Groq API error: %s", groq_res.text)
+            logger.error(f"[GROQ API ERROR] Status {groq_res.status_code} on model '{active_model}': {err_msg}")
             return jsonify({"error": err_msg}), groq_res.status_code
 
         # Parse successful response
@@ -241,19 +280,13 @@ def analyze():
             .get("content", "{}")
         )
 
-        # Parse JSON from model output (with regex fallback for malformed responses)
         try:
-            parsed_data = json.loads(message_content)
-        except json.JSONDecodeError:
-            match = re.search(r"\{[\s\S]*\}", message_content)
-            if match:
-                parsed_data = json.loads(match.group(0))
-            else:
-                raise ValueError(
-                    "Failed to parse analysis response from Groq engine."
-                )
+            parsed_data = parse_model_json(message_content)
+        except Exception as parse_err:
+            logger.error(f"[PARSE ERROR] Failed to parse model JSON: {parse_err}. Raw content: {message_content[:300]}")
+            return jsonify({"error": "Failed to parse analysis response from Groq engine."}), 500
 
-        # Sanitize risk level & arrays (identical to original TS logic)
+        # Sanitize risk level & arrays
         normalized_risk = str(parsed_data.get("risk_level", "HIGH")).upper()
         parsed_data["risk_level"] = (
             normalized_risk if normalized_risk in ("LOW", "MEDIUM", "HIGH") else "MEDIUM"
@@ -269,11 +302,16 @@ def analyze():
             else []
         )
 
+        logger.info(
+            f"[ANALYSIS SUCCESS] Model: {active_model} | Risk: {parsed_data['risk_level']} | "
+            f"Flags: {len(parsed_data['flags'])} | Legit Signals: {len(parsed_data['legitimate_signals'])}"
+        )
+
         return jsonify(parsed_data), 200
 
     except Exception as e:
-        app.logger.error(
-            "Error analyzing job posting with Groq: %s", str(e), exc_info=True
+        logger.error(
+            "[UNHANDLED EXCEPTION] Error analyzing job posting: %s", str(e), exc_info=True
         )
         return (
             jsonify(

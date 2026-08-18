@@ -43,8 +43,8 @@ Jhoot Detector is built on a full-stack architecture combining a vanilla HTML/CS
                                   ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                        Groq Cloud API                            │
-│           Model: llama-3.3-70b-versatile (Temp: 0.3)             │
-│            (Fallback: llama-3.1-8b-instant on 404)               │
+│           Model: openai/gpt-oss-120b (Temp: 0.3)                 │
+│            (Fallback: openai/gpt-oss-20b on 404)                 │
 └─────────────────────────────────┬────────────────────────────────┘
                                   │ Structured JSON Output
                                   ▼
@@ -73,10 +73,10 @@ Jhoot Detector is built on a full-stack architecture combining a vanilla HTML/CS
 - **Error Handling:** Catches Groq API errors (rate limits, 5xx, timeouts) and returns clean JSON error responses.
 
 ### 3. LLM Integration
-- **Inference Engine:** [Groq Cloud](https://groq.com/) API running **Llama 3.3 70B** (`llama-3.3-70b-versatile`).
+- **Inference Engine:** [Groq Cloud](https://groq.com/) API running **GPT-OSS 120B** (`openai/gpt-oss-120b`).
 - **Endpoint Protocol:** Uses Groq's OpenAI-compatible chat completions endpoint (`https://api.groq.com/openai/v1/chat/completions`) via Python `requests`.
 - **Temperature Configuration:** Configured with a low temperature (`0.3`) to prioritize deterministic reasoning, factual consistency, and strict JSON output compliance over creative variance.
-- **Model Fallback:** Includes automated fallback handling to `llama-3.1-8b-instant` in the event of model deprecation or temporary unavailability.
+- **Model Fallback:** Includes automated fallback handling to `openai/gpt-oss-20b` in the event of primary model maintenance or temporary unavailability.
 
 ---
 
@@ -129,7 +129,7 @@ To guarantee reliable rendering, inference is locked to JSON mode using `respons
 | **Environment** | [python-dotenv](https://github.com/theskumar/python-dotenv) (`1.1.0`) |
 | **CORS** | [Flask-CORS](https://flask-cors.readthedocs.io/) (`5.0.1`) |
 | **Production Server** | [Gunicorn](https://gunicorn.org/) (`23.0.0`) |
-| **Inference API** | [Groq Cloud](https://console.groq.com/) (`llama-3.3-70b-versatile`) |
+| **Inference API** | [Groq Cloud](https://console.groq.com/) (`openai/gpt-oss-120b`) |
 
 ---
 

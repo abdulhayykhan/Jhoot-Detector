@@ -2,8 +2,6 @@
 
 > An AI-powered scam analysis tool that evaluates job postings from Pakistani social media groups and job boards to detect recruitment fraud, upfront fee extortion, and identity theft traps.
 
-🌐 **Live Demo:** [https://jhoot-detector.vercel.app/](https://jhoot-detector.vercel.app/)
-
 ---
 
 ## 📌 Problem Statement
@@ -22,22 +20,23 @@ Manual detection is challenging for job seekers who may lack formal corporate ex
 
 ## 🏗️ System Architecture
 
-Jhoot Detector is built on a full-stack architecture combining a reactive client-side interface with a stateless serverless inference pipeline:
+Jhoot Detector is built on a full-stack architecture combining a vanilla HTML/CSS/JS frontend with a Python Flask API backend:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                          Frontend Client                         │
-│   (React 19 + TypeScript + Vite + Tailwind CSS v4 + Dark Mode)   │
+│   (Vanilla HTML5 + CSS3 + JavaScript + Dark/Light Mode)          │
 └─────────────────────────────────┬────────────────────────────────┘
                                   │ POST /api/analyze
                                   │ { text: string }
                                   ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                   Vercel Serverless Function                     │
-│                       (/api/analyze.ts)                          │
+│                     Python Flask Backend                         │
+│                          (app.py)                                │
 │  - Payload sanitization & minimum length validation (> 15 chars) │
 │  - System instruction formatting with Pakistani scam heuristics │
 │  - JSON response mode enforcement                                │
+│  - XSS-safe: all AI text escaped before DOM insertion            │
 └─────────────────────────────────┬────────────────────────────────┘
                                   │ HTTPS POST (OpenAI-compatible)
                                   │ Authorization: Bearer GROQ_API_KEY
@@ -59,22 +58,23 @@ Jhoot Detector is built on a full-stack architecture combining a reactive client
 ```
 
 ### 1. Frontend Architecture
-- **Framework:** React 19 with TypeScript, bundled using Vite.
-- **Styling & Theming:** Tailwind CSS v4 with an adaptive light and dark mode engine (in-memory state with system `prefers-color-scheme` detection).
+- **Stack:** Vanilla HTML5, CSS3 (with CSS Custom Properties), JavaScript (ES6+).
+- **Styling & Theming:** Hand-written CSS with an adaptive light and dark mode engine (system `prefers-color-scheme` detection, toggle button).
 - **Component Structure:**
-  - `Header`: Branding, application status, and theme toggle.
-  - `RiskBadge`: High-contrast visual indicator rendering `HIGH RISK`, `MEDIUM RISK`, or `LOW RISK` with icon states.
-  - `AnalysisResults`: Primary verdict display containing the single-sentence summary, itemized red-flag cards (with extracted quotes and risk explanations), and positive confidence signals.
-  - `Sample Post Cards`: One-click benchmark postings enabling instant demonstration across various risk tiers.
+  - Header: Branding, application status, and theme toggle.
+  - Risk Badge: High-contrast visual indicator rendering `HIGH RISK`, `MEDIUM RISK`, or `LOW RISK` with Urdu subtitles and icon states.
+  - Analysis Results: Primary verdict display containing the single-sentence summary, itemized red-flag cards (with extracted quotes and risk explanations), and positive confidence signals.
+  - Sample Post Cards: One-click benchmark postings enabling instant demonstration across various risk tiers.
+- **XSS Protection:** All AI-returned text is HTML-escaped before DOM insertion via a dedicated `escapeHtml()` utility.
 
-### 2. Backend & Serverless Pipeline
-- **Serverless Architecture:** The production backend runs as a stateless Vercel Serverless Function (`api/analyze.ts`). It handles HTTP requests without maintaining a persistent server process, optimizing cold starts and auto-scaling.
-- **Local Dev Server:** In local development, an Express entry point (`server.ts`) wraps the identical handler and integrates Vite middleware.
+### 2. Backend Architecture
+- **Framework:** Python Flask serving both the static frontend and a REST API endpoint.
 - **Payload Validation:** Enforces request method boundaries (`POST`), validates input string presence, and guards against empty or sub-15-character inputs.
+- **Error Handling:** Catches Groq API errors (rate limits, 5xx, timeouts) and returns clean JSON error responses.
 
 ### 3. LLM Integration
 - **Inference Engine:** [Groq Cloud](https://groq.com/) API running **Llama 3.3 70B** (`llama-3.3-70b-versatile`).
-- **Endpoint Protocol:** Uses Groq's OpenAI-compatible chat completions endpoint (`https://api.groq.com/openai/v1/chat/completions`) via native `fetch`.
+- **Endpoint Protocol:** Uses Groq's OpenAI-compatible chat completions endpoint (`https://api.groq.com/openai/v1/chat/completions`) via Python `requests`.
 - **Temperature Configuration:** Configured with a low temperature (`0.3`) to prioritize deterministic reasoning, factual consistency, and strict JSON output compliance over creative variance.
 - **Model Fallback:** Includes automated fallback handling to `llama-3.1-8b-instant` in the event of model deprecation or temporary unavailability.
 
@@ -100,18 +100,20 @@ The system prompt evaluates incoming posting text against seven distinct fraud v
 
 ### 2. Structured JSON Output Schema
 
-To guarantee reliable rendering and prevent output formatting errors, inference is locked to JSON mode using `response_format: { type: "json_object" }`. The model is constrained to return data adhering to this TypeScript interface:
+To guarantee reliable rendering, inference is locked to JSON mode using `response_format: { type: "json_object" }`. The model returns data in this structure:
 
-```typescript
-interface AnalysisResult {
-  risk_level: "LOW" | "MEDIUM" | "HIGH";
-  summary: string;
-  flags: Array<{
-    issue: string;        // Concise title of the identified red flag
-    detail: string;       // Exact or near-exact quote extracted from the job post
-    explanation: string;  // Plain-language explanation of why this detail represents a risk
-  }>;
-  legitimate_signals: string[]; // Positive trust indicators identified (for LOW/MEDIUM risk posts)
+```json
+{
+  "risk_level": "LOW | MEDIUM | HIGH",
+  "summary": "one sentence verdict",
+  "flags": [
+    {
+      "issue": "short label",
+      "detail": "the specific phrase or detail",
+      "explanation": "why it's suspicious"
+    }
+  ],
+  "legitimate_signals": ["list of things that looked okay, only if risk is LOW or MEDIUM"]
 }
 ```
 
@@ -121,37 +123,46 @@ interface AnalysisResult {
 
 | Layer | Technologies & Dependencies |
 | :--- | :--- |
-| **Frontend Framework** | [React 19](https://react.dev/) (`react` `19.0.1`, `react-dom` `19.0.1`) |
-| **Language & Tooling** | [TypeScript](https://www.typescriptlang.org/) (`~5.8.2`), [Vite](https://vitejs.dev/) (`6.2.3`) |
-| **Styling & Design** | [Tailwind CSS v4](https://tailwindcss.com/) (`@tailwindcss/vite` `4.1.14`), [Lucide React](https://lucide.dev/) (`0.546.0`) |
-| **Animations** | [Motion](https://motion.dev/) (`motion` `12.23.24`) |
-| **Local Server** | [Express](https://expressjs.com/) (`4.21.2`), [tsx](https://github.com/privatenumber/tsx) (`4.21.0`), [dotenv](https://github.com/motdotla/dotenv) (`17.2.3`) |
+| **Frontend** | Vanilla HTML5, CSS3 (CSS Custom Properties), JavaScript (ES6+) |
+| **Backend** | [Python Flask](https://flask.palletsprojects.com/) (`3.1.1`) |
+| **HTTP Client** | [Requests](https://docs.python-requests.org/) (`2.32.3`) |
+| **Environment** | [python-dotenv](https://github.com/theskumar/python-dotenv) (`1.1.0`) |
+| **CORS** | [Flask-CORS](https://flask-cors.readthedocs.io/) (`5.0.1`) |
+| **Production Server** | [Gunicorn](https://gunicorn.org/) (`23.0.0`) |
 | **Inference API** | [Groq Cloud](https://console.groq.com/) (`llama-3.3-70b-versatile`) |
-| **Deployment** | [Vercel](https://vercel.com/) (Edge / Serverless Functions) |
 
 ---
 
 ## 🚀 Setup & Local Development
 
 ### Prerequisites
-- **Node.js:** v18.0.0 or higher
-- **npm:** v9.0.0 or higher
+- **Python:** 3.9 or higher
+- **pip:** Latest version
 - **Groq API Key:** Obtainable for free at [Groq Console](https://console.groq.com/keys)
 
 ### Step-by-Step Installation
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/jhoot-detector.git
-   cd jhoot-detector
+   git clone https://github.com/abdulhayykhan/Jhoot-Detector.git
+   cd Jhoot-Detector
    ```
 
-2. **Install project dependencies:**
+2. **Create a virtual environment (recommended):**
    ```bash
-   npm install
+   python -m venv venv
+   # Windows:
+   venv\Scripts\activate
+   # macOS/Linux:
+   source venv/bin/activate
    ```
 
-3. **Configure environment variables:**
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configure environment variables:**
    Create a `.env` file in the project root based on `.env.example`:
    ```bash
    cp .env.example .env
@@ -161,33 +172,64 @@ interface AnalysisResult {
    GROQ_API_KEY=gsk_your_actual_groq_api_key_here
    ```
 
-4. **Start the local development server:**
+5. **Start the local development server:**
    ```bash
-   npm run dev
+   flask run
    ```
    Open your browser and navigate to `http://localhost:3000`.
 
-5. **Build for production:**
+   Or run directly:
    ```bash
-   npm run build
+   python app.py
    ```
 
 ---
 
-## ☁️ Deployment on Vercel
+## ☁️ Deployment
 
-Jhoot Detector is configured for one-click deployment on Vercel using serverless API routes:
+### Option 1: Vercel (Configured via `vercel.json`)
 
-1. **Push to GitHub:** Ensure your repository is pushed to GitHub.
-2. **Import Project in Vercel:** Go to [Vercel Dashboard](https://vercel.com/new) and import the repository.
-3. **Configure Environment Variables:**
-   Under **Project Settings > Environment Variables**, add:
-   - `GROQ_API_KEY`: `gsk_...` (Your Groq Cloud API key)
-4. **Build & Output Settings:**
-   - **Framework Preset:** Vite
-   - **Build Command:** `npm run build`
-   - **Output Directory:** `dist`
-5. **Deploy:** Click **Deploy**. The serverless function under `/api/analyze` will deploy automatically alongside the static frontend bundle.
+The project is pre-configured with `vercel.json` for Vercel's Python Serverless Runtime (`@vercel/python`).
+
+1. **Push your code to GitHub:**
+   ```bash
+   git push origin main
+   ```
+2. **Import into Vercel:**
+   - Go to [Vercel Dashboard](https://vercel.com/new) and import your repository.
+3. **Configure Environment Variables (CRITICAL):**
+   - Under **Project Settings > Environment Variables**, add:
+     - **Key:** `GROQ_API_KEY`
+     - **Value:** `gsk_your_groq_api_key_here`
+   - *Note:* Environment variables in Vercel's dashboard are separate from your local `.env` file.
+4. **Deploy:** Click **Deploy**. Vercel will install dependencies from `requirements.txt` and route all frontend requests and `/api/analyze` to the Flask WSGI handler.
+
+---
+
+### Alternative Platforms (Persistent WSGI)
+
+#### Option 2: Render.com (Free Web Service)
+
+1. Push your code to GitHub
+2. Go to [Render Dashboard](https://dashboard.render.com/) → **New** → **Web Service**
+3. Connect your GitHub repository
+4. Configure:
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `gunicorn app:app`
+   - **Environment Variables:** Add `GROQ_API_KEY`
+5. Deploy — Render will auto-deploy on every push
+
+#### Option 3: Railway.app
+
+1. Go to [Railway](https://railway.app/) → **New Project** → **Deploy from GitHub**
+2. Connect your repository
+3. Add environment variable: `GROQ_API_KEY`
+4. Railway auto-detects Python and deploys with gunicorn
+
+### Production Command
+```bash
+gunicorn app:app --bind 0.0.0.0:$PORT
+```
 
 ---
 

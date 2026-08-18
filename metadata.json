@@ -1,6 +1,0 @@
-{
-  "name": "Jhoot Detector",
-  "description": "Pakistani job scam post analyzer using AI to detect fraudulent job advertisements.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

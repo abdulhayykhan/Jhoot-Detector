@@ -1,8 +1,29 @@
-node_modules/
-build/
-dist/
-coverage/
-.DS_Store
-*.log
-.env*
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+venv/
+.venv/
+env/
+.flask_session/
+instance/
+
+# Environment
+.env
+.env.*
+.env.local
 !.env.example
+
+# Logs
+*.log
+
+# OS & Temp
+.DS_Store
+Thumbs.db
+*.tmp
+
+# IDE
+.idea/
+.vscode/
